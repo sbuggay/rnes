@@ -1,5 +1,3 @@
-mod opcodes;
-
 use opcodes::Instruction;
 
 pub enum Flags {

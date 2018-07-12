@@ -1,5 +1,3 @@
-mod cpu;
-
 use cpu::CPU;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
