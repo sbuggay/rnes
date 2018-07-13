@@ -60,15 +60,13 @@ pub enum Instruction {
 	TYA, // Transfer Y to Accumulator..... | N. ...Z. A            = Y
 }
 
-
 #[derive(Copy, Clone)]
 pub enum OpInput {
-	UseImplied,
-	UseImmediate(u8),
-	UseRelative(i8),
-	UseAddress(u16),
+	Implied,
+	Immediate(u8),
+	Relative(i8),
+	Address(u16),
 }
-
 
 #[derive(Copy, Clone)]
 pub enum AMode {
@@ -120,42 +118,44 @@ impl AMode {
 		let memory = &cpu.mem;
 
 		match self {
-			AMode::Accumulator | AMode::Implied => OpInput::UseImplied,
-			AMode::Immediate => OpInput::UseImmediate(arr[0]), // Use [u8, ..1] specified in instruction as input
-			AMode::ZeroPage => OpInput::UseAddress(arr[0] as u16), // Interpret as zero page address
-			AMode::ZeroPageX => OpInput::UseAddress((arr[0] + x) as u16), // Add to X register (as u8 -- the final address is in 0-page)
-			AMode::ZeroPageY => OpInput::UseAddress((arr[0] + y) as u16), // Add to Y register (as u8 -- the final address is in 0-page)
-			AMode::Relative => OpInput::UseRelative(arr[0] as i8), // Use [u8, ..1] from instruction
-			AMode::Absolute => OpInput::UseAddress(arr_to_addr(arr)),
-			AMode::AbsoluteX => OpInput::UseAddress(arr_to_addr(arr) + x as u16),
-			AMode::AbsoluteY => OpInput::UseAddress(arr_to_addr(arr) + y as u16),
+			AMode::Accumulator | AMode::Implied => OpInput::Implied,
+			AMode::Immediate => OpInput::Immediate(arr[0]), // Use [u8, ..1] specified in instruction as input
+			AMode::ZeroPage => OpInput::Address(arr[0] as u16), // Interpret as zero page address
+			AMode::ZeroPageX => OpInput::Address((arr[0] + x) as u16), // Add to X register (as u8 -- the final address is in 0-page)
+			AMode::ZeroPageY => OpInput::Address((arr[0] + y) as u16), // Add to Y register (as u8 -- the final address is in 0-page)
+			AMode::Relative => OpInput::Relative(arr[0] as i8), // Use [u8, ..1] from instruction
+			AMode::Absolute => OpInput::Address(arr_to_addr(arr)),
+			AMode::AbsoluteX => OpInput::Address(arr_to_addr(arr) + x as u16),
+			AMode::AbsoluteY => OpInput::Address(arr_to_addr(arr) + y as u16),
 			AMode::Indirect => {
 				// Use [u8, ..2] from instruction as an address. Interpret the
 				// two bytes starting at that address as an address.
 				// (Output: a 16-bit address)
-				// let slice = memory.get_slice(arr_to_addr(arr), 2);
-				// OpInput::UseAddress(arr_to_addr(slice))
-				OpInput::UseAddress((arr[0] + x) as u16)
+				let start = arr_to_addr(arr) as usize;
+				let end = (start + 2) as usize;
+				let slice = &cpu.mem[start..end];
+				OpInput::Address(arr_to_addr(slice));
+				OpInput::Address((arr[0] + x) as u16)
 			}
 			AMode::IndexedIndirectX => {
 				// Use [u8, ..1] from instruction
 				// Add to X register with 0-page wraparound, like ZeroPageX.
 				// This is where the absolute (16-bit) target address is stored.
 				// (Output: a 16-bit address)
-				// let start = arr[0] + x;
-				// let slice = memory.get_slice((start as u16), 2);
-				// OpInput::UseAddress(arr_to_addr(slice))
-				OpInput::UseAddress((arr[0] + x) as u16)
+				let start = (arr[0] + x) as usize;
+				let end = (start + 2) as usize;
+				let slice = &cpu.mem[start..end];
+				OpInput::Address(arr_to_addr(slice))
 			}
 			AMode::IndirectIndexedY => {
 				// Use [u8, ..1] from instruction
 				// This is where the absolute (16-bit) target address is stored.
 				// Add Y register to this address to get the final address
 				// (Output: a 16-bit address)
-				// let start = arr[0];
-				// let slice = memory.get_slice(start as u16, 2);
-				// OpInput::UseAddress(arr_to_addr(slice) + y as i32)
-				OpInput::UseAddress((arr[0] + x) as u16)
+				let start = arr[0] as usize;
+				let end = (start + 2) as usize;
+				let slice = &cpu.mem[start..end];
+				OpInput::Address(arr_to_addr(slice))
 			}
 		}
 	}
@@ -166,7 +166,7 @@ pub type DecodedInstr = (Instruction, OpInput);
 pub fn process_opcode(op: u8) -> Option<DecodedInstr> {
 	match OPCODES[op as usize] {
 		Some((instruction, am)) => {
-			let opinput = OpInput::UseImplied;
+			let opinput = OpInput::Implied;
 			Some((instruction, opinput))
 		}
 		_ => None,

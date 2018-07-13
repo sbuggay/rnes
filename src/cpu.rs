@@ -1,4 +1,5 @@
-use opcodes::Instruction;
+use instructions::Instruction;
+use memory::MEMORY_SIZE;
 
 pub enum Flags {
 	Carry = 0b00000001,
@@ -29,20 +30,20 @@ impl CPU {
 			y: 0,
 			st: 0x20,
 			sp: 0xFF,
-			mem: vec![0; 1 << 16] //65535
+			mem: vec![0; MEMORY_SIZE] //65535
 		}
 	}
 
 	pub fn dump(&self) {
-		println!("{}", &self.pc);
-		println!("{}", &self.a);
-		println!("{}", &self.x);
-		println!("{}", &self.y);
-		println!("{}", &self.st);
-		println!("{}", &self.sp);
+		println!("program counter:\t{}", &self.pc);
+		println!("accumulator:\t\t{}", &self.a);
+		println!("x:\t\t\t{}", &self.x);
+		println!("y:\t\t\t{}", &self.y);
+		println!("status:\t\t\t{}", &self.st);
+		println!{"mem capacity:\t\t{}", &self.mem.capacity()};
 	}
 
-	pub fn single_step(&mut self) {
+	pub fn single_step(&self) {
 		// let opcode = match get_opcode(self.mem[self.pc as usize]) {
 		// 	Some(op) => op,
 		// 	None => {
@@ -115,9 +116,8 @@ impl CPU {
 			Instruction::TXA => 1,// self.txa(),
 			Instruction::TYA => 1,// self.tya(),
 			Instruction::TXS => 1,// self.txs(),
-			_ => 0,
 		};
 
-		println!("{}", output);
+		println!("running opcode {:?}", opcode);
 	}
 }
