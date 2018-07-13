@@ -3,11 +3,24 @@ mod instructions;
 mod memory;
 mod rom;
 
+use std::fs;
 
 fn main() {
-	let cpu = cpu::CPU::new();
-	cpu.dump();
-	cpu.single_step();
+	let mut cpu = cpu::CPU::new();
+	
+	let mut file = fs::File::open("testroms/nestest.nes").expect("meme");
+	let r = rom::Rom::load(&mut file);
 
-	let data = rom::read_rom("C:/Users/sbugg/Projects/nes/target/debug/nestest.nes");
+	println!("{:?}", r);
+
+	cpu.dump();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
+	cpu.emulate();
 }
