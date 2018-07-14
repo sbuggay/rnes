@@ -84,7 +84,7 @@ impl Rom {
 		}
 
 		if has_trainer {
-			fp.seek(SeekFrom::Current(512)); // Skip trainer.
+			fp.seek(SeekFrom::Current(512));
 		}
 
 		fp.read_exact(&mut rom[..]);
@@ -97,6 +97,13 @@ impl Rom {
 			save_ram_length: save_ram_length,
 			mirroring: mirroring,
 		}
+	}
+
+	pub fn dump(&self) {
+		for hex in self.rom.iter() {
+			print!("{:X} ", hex);
+		}
+		println!("");
 	}
 
 	pub fn rom_bank_count(&self) -> usize {

@@ -46,10 +46,19 @@ impl CPU {
 	}
 
 	pub fn emulate(&mut self) {
-		let now = time::Instant::now();
 
-		let opcode = match process_opcode(self.mem[self.pc as usize]) {
-			Some(op) => op,
+		let opcode = self.mem[self.pc as usize];
+		let parsed_opcode = process_opcode(opcode);
+		
+		
+		let constructed_opcode = match parsed_opcode {
+			Some((instruction, amode)) => {
+				let extra_bytes = amode.extra_bytes();
+				let slice = &self.mem[(self.pc as usize)..((self.pc + extra_bytes as u16) as usize)];
+				let opinput = amode.process(self, slice);
+				self.pc += extra_bytes as u16;
+				(instruction, opinput)
+			},
 			None => {
 				println!(
 					"Invalid opcode {:02X} (IP = {:04X})!",
@@ -59,7 +68,7 @@ impl CPU {
 			}
 		};
 
-		match opcode {
+		match constructed_opcode {
 			(Instruction::ADC, OpInput::Immediate(val)) => self.adc(val as i8),
 			(Instruction::ADC, OpInput::Address(val)) => self.adc(self.mem[val as usize] as i8),
 			(Instruction::AND, OpInput::Immediate(val)) => self.and(val as i8),
@@ -75,12 +84,120 @@ impl CPU {
 			(Instruction::BPL, OpInput::Relative(val)) => self.bmi((self.pc + val as u16) as i32), // 32b?
 			(Instruction::BVC, OpInput::Relative(val)) => self.bmi((self.pc + val as u16) as i32), // 32b?
 			(Instruction::BVS, OpInput::Relative(val)) => self.bmi((self.pc + val as u16) as i32), // 32b?
+			(Instruction::CLC, OpInput::Implied) => self.st |= Flags::Carry as u8,
+			(Instruction::CLD, OpInput::Implied) => self.st |= Flags::Decimal as u8,
+			(Instruction::CLI, OpInput::Implied) => self.st |= Flags::Interrupt as u8,
+			(Instruction::CLV, OpInput::Implied) => self.st |= Flags::Overflow as u8,
+			(Instruction::CMP, OpInput::Immediate(val)) => self.cmp(val),
+			(Instruction::CMP, OpInput::Address(val)) => self.cmp(self.mem[val as usize]),
+			(Instruction::CPX, OpInput::Immediate(val)) => self.cpx(val),
+			(Instruction::CPX, OpInput::Address(val)) => self.cpx(self.mem[val as usize]),
+			(Instruction::CPY, OpInput::Immediate(val)) => self.cpy(val),
+			(Instruction::CPY, OpInput::Address(val)) => self.cpy(self.mem[val as usize]),
+			(Instruction::DEC, OpInput::Address(val)) => self.dec(val),
+			(Instruction::DEX, OpInput::Implied) => self.dex(),
+			(Instruction::EOR, OpInput::Immediate(val)) => self.eor(val),
+			(Instruction::EOR, OpInput::Address(val)) => self.eor(self.mem[val as usize]),
+			(Instruction::INC, OpInput::Address(val)) => self.inc(val),
+			(Instruction::INX, OpInput::Implied) => self.inx(self.x + 1),
+			(Instruction::INY, OpInput::Implied) => self.iny(self.y + 1),
+			(Instruction::JMP, OpInput::Address(val)) => self.jump(val),
+			(Instruction::LDA, OpInput::Immediate(val)) => self.lda(val as i8),
+			(Instruction::LDA, OpInput::Address(val)) => self.lda(self.mem[val as usize] as i8),
+			(Instruction::LDX, OpInput::Immediate(val)) => self.ldx(val as i8),
+			(Instruction::LDX, OpInput::Address(val)) => self.ldx(self.mem[val as usize] as i8),
+			(Instruction::LDY, OpInput::Immediate(val)) => self.ldy(val as i8),
+			(Instruction::LDY, OpInput::Address(val)) => self.ldy(self.mem[val as usize] as i8),
+			(Instruction::LSR, OpInput::Implied) => self.lsr(self.st),
+			(Instruction::LSR, OpInput::Address(val)) => self.lsr(val as u8), // 16b -> 8b?
+			(Instruction::ORA, OpInput::Immediate(val)) => self.ora(val),
+			(Instruction::ORA, OpInput::Address(val)) => self.ora(self.mem[val as usize]),
 
-			// Instruction::CLC => 1, // self.clc(),
-			// Instruction::CLD => 1, // self.cld(),
-			// Instruction::CLI => 1, // self.cli(),
-			// Instruction::CLV => 1, // self.clv(),
-			// Instruction::CMP => 1, // self.cmp(val),
+			// (Instruction::PHA, OpInput::UseImplied) => {
+			// 	// Push accumulator
+			// 	let val = self.registers.accumulator as u8;
+			// 	self.push_on_stack(val);
+			// }
+			// (Instruction::PHP, OpInput::UseImplied) => {
+			// 	// Push status
+			// 	let val = self.registers.status.bits();
+			// 	self.push_on_stack(val);
+			// }
+			// (Instruction::PLA, OpInput::UseImplied) => {
+			// 	// Pull accumulator
+			// 	let val: u8 = self.pull_from_stack();
+			// 	self.registers.accumulator = val as i8;
+			// }
+			// (Instruction::PLP, OpInput::UseImplied) => {
+			// 	// Pull status
+			// 	let val: u8 = self.pull_from_stack();
+			// 	self.registers.status = Status::from_bits_truncate(val);
+			// }
+
+			(Instruction::ROL, OpInput::Implied) => self.rol(self.a),
+			(Instruction::ROL, OpInput::Address(val)) => self.rol(val as u8),
+			(Instruction::ROR, OpInput::Implied) => self.ror(self.a),
+			(Instruction::ROR, OpInput::Address(val)) => self.ror(val as u8),
+
+
+			// (Instruction::SBC, OpInput::UseImmediate(val)) => {
+			// 	debug!("subtract with carry immediate: {}", val);
+			// 	self.subtract_with_carry(val as i8);
+			// }
+			// (Instruction::SBC, OpInput::UseAddress(addr)) => {
+			// 	let val = self.memory.get_byte(addr) as i8;
+			// 	debug!("subtract with carry. address: {:?}. value: {}", addr, val);
+			// 	self.subtract_with_carry(val);
+			// }
+
+			// (Instruction::SEC, OpInput::UseImplied) => {
+			// 	self.registers.status.or(PS_CARRY);
+			// }
+			// (Instruction::SED, OpInput::UseImplied) => {
+			// 	self.registers.status.or(PS_DECIMAL_MODE);
+			// }
+			// (Instruction::SEI, OpInput::UseImplied) => {
+			// 	self.registers.status.or(PS_DISABLE_INTERRUPTS);
+			// }
+
+			// (Instruction::STA, OpInput::UseAddress(addr)) => {
+			// 	self.memory.set_byte(addr, self.registers.accumulator as u8);
+			// }
+			// (Instruction::STX, OpInput::UseAddress(addr)) => {
+			// 	self.memory.set_byte(addr, self.registers.index_x as u8);
+			// }
+			// (Instruction::STY, OpInput::UseAddress(addr)) => {
+			// 	self.memory.set_byte(addr, self.registers.index_y as u8);
+			// }
+
+			// (Instruction::TAX, OpInput::UseImplied) => {
+			// 	let val = self.registers.accumulator;
+			// 	self.load_x_register(val);
+			// }
+			// (Instruction::TAY, OpInput::UseImplied) => {
+			// 	let val = self.registers.accumulator;
+			// 	self.load_y_register(val);
+			// }
+			// (Instruction::TSX, OpInput::UseImplied) => {
+			// 	let StackPointer(val) = self.registers.stack_pointer;
+			// 	let val = val as i8;
+			// 	self.load_x_register(val);
+			// }
+			// (Instruction::TXA, OpInput::UseImplied) => {
+			// 	let val = self.registers.index_x;
+			// 	self.load_accumulator(val);
+			// }
+			// (Instruction::TXS, OpInput::UseImplied) => {
+			// 	// Note that this is the only 'transfer' instruction that does
+			// 	// NOT set the zero and negative flags. (Because the target
+			// 	// is the stack pointer)
+			// 	let val = self.registers.index_x;
+			// 	self.registers.stack_pointer = StackPointer(val as u8);
+			// }
+			// (Instruction::TYA, OpInput::UseImplied) => {
+			// 	let val = self.registers.index_y;
+			// 	self.load_accumulator(val);
+			// }
 			// Instruction::CPX => 1, // self.cpx(val),
 			// Instruction::CPY => 1, // self.cpy(val),
 			// Instruction::DEC => 1, // self.dec(addr),
@@ -124,9 +241,8 @@ impl CPU {
 			}
 		};
 
-		println!("matching and invocation of {:?} took {}", opcode.0, now.elapsed().subsec_micros());
 
-		self.pc += 1;
+		
 	}
 
 	fn adc(&self, val: i8) {
@@ -159,5 +275,69 @@ impl CPU {
 
 	fn bmi(&self, val: i32) {
 		println!("BMI {}", val);
+	}
+
+	fn cmp(&self, val: u8) {
+		println!("CMP {}", val);
+	}
+
+	fn cpx(&self, val: u8) {}
+
+	fn cpy(&self, val: u8) {}
+
+	fn dec(&self, val: u16) {
+		println!("Dec {}", val);
+	}
+
+	fn dex(&self) {
+		println!("DEX");
+	}
+
+	fn eor(&self, val: u8) {
+		println!("EOR {}", val);
+	}
+
+	fn inc(&self, val: u16) {
+		println!("INC {}", val);
+	}
+
+	fn inx(&self, val: u8) {
+		println!("INX {}", val);
+	}
+
+	fn iny(&self, val: u8) {
+		println!("INY {}", val);
+	}
+
+	fn jump(&self, val: u16) {
+		println!("JUMP {}", val);
+	}
+
+	fn lda(&self, val: i8) {
+		println!("LDA {}", val);
+	}
+
+	fn ldx(&self, val: i8) {
+		println!("LDX {}", val);
+	}
+
+	fn ldy(&self, val: i8) {
+		println!("LDY {}", val);
+	}
+
+	fn lsr(&self, val: u8) {
+		println!("LSR {}", val);
+	}
+
+	fn ora(&self, val: u8) {
+		println!("ORA {}", val);
+	}
+
+	fn ror(&self, val: u8) {
+		println!("ORA {}", val);
+	}
+
+	fn rol(&self, val: u8) {
+		println!("ORA {}", val);
 	}
 }

@@ -68,7 +68,7 @@ pub enum OpInput {
 	Address(u16),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum AMode {
 	Accumulator,      // 1    LSR A        work directly on accumulator
 	Implied,          // 1    BRK
@@ -115,7 +115,7 @@ impl AMode {
 		let x = cpu.x as u8;
 		let y = cpu.y as u8;
 
-		let memory = &cpu.mem;
+		println!("processing amode {:?} with input {:?}", self, arr);
 
 		match self {
 			AMode::Accumulator | AMode::Implied => OpInput::Implied,
@@ -123,7 +123,7 @@ impl AMode {
 			AMode::ZeroPage => OpInput::Address(arr[0] as u16), // Interpret as zero page address
 			AMode::ZeroPageX => OpInput::Address((arr[0] + x) as u16), // Add to X register (as u8 -- the final address is in 0-page)
 			AMode::ZeroPageY => OpInput::Address((arr[0] + y) as u16), // Add to Y register (as u8 -- the final address is in 0-page)
-			AMode::Relative => OpInput::Relative(arr[0] as i8), // Use [u8, ..1] from instruction
+			AMode::Relative => OpInput::Relative(arr[0] as i8),        // Use [u8, ..1] from instruction
 			AMode::Absolute => OpInput::Address(arr_to_addr(arr)),
 			AMode::AbsoluteX => OpInput::Address(arr_to_addr(arr) + x as u16),
 			AMode::AbsoluteY => OpInput::Address(arr_to_addr(arr) + y as u16),
@@ -161,16 +161,8 @@ impl AMode {
 	}
 }
 
-pub type DecodedInstr = (Instruction, OpInput);
-
-pub fn process_opcode(op: u8) -> Option<DecodedInstr> {
-	match OPCODES[op as usize] {
-		Some((instruction, am)) => {
-			let opinput = OpInput::Implied;
-			Some((instruction, opinput))
-		}
-		_ => None,
-	}
+pub fn process_opcode(op: u8) -> Option<(Instruction, AMode)> {
+	OPCODES[op as usize]
 }
 
 pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
