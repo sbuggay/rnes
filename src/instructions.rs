@@ -4,7 +4,7 @@ use cpu::CPU;
 pub enum Instruction {
 	ADC, // ADd with Carry................ | NV ...ZC A            = A + M + C
 	AND, // logical AND (bitwise)......... | N. ...Z. A            = A && M
-	ASL, // Arithmetic Shift Left......... | N. ...ZC A            = M << 1    BCC // Branch if Carry Clear......... | .. .....         PC   = !C
+	ASL, // Arithmetic Shift Left......... | N. ...ZC A            = M << 1
 	BCC, // Branch if Carry Clear......... | .. .....         PC   = !C
 	BCS, // Branch if Carry Set........... | .. .....         PC   = C
 	BEQ, // Branch if Equal (to zero?).... | .. .....         PC   = Z
@@ -60,7 +60,7 @@ pub enum Instruction {
 	TYA, // Transfer Y to Accumulator..... | N. ...Z. A            = Y
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum OpInput {
 	Implied,
 	Immediate(u8),
@@ -115,7 +115,12 @@ impl AMode {
 		let x = cpu.x as u8;
 		let y = cpu.y as u8;
 
-		println!("processing amode {:?} with input {:?}", self, arr);
+		print!("{:?} [", self);
+		for b in arr {
+			print!("{:X} ", b);
+		}
+		println!("]");
+		
 
 		match self {
 			AMode::Accumulator | AMode::Implied => OpInput::Implied,
