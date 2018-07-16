@@ -6,11 +6,11 @@ mod memory;
 mod rom;
 
 use std::fs;
+use std::time::*;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use std::time::Duration;
 
 fn main() {
 	let mut cpu = cpu::CPU::new();
@@ -50,7 +50,22 @@ fn main() {
 	canvas.present();
 	let mut event_pump = sdl_context.event_pump().unwrap();
 
+
+	let mut last_frame = std::time::Instant::now();
+	let mut frames = 0;
+
 	'running: loop {
+		// cpu step
+		cpu.emulate();
+
+		// ppu step
+
+		// nmi
+
+		// irq
+
+		// apu
+
 		for event in event_pump.poll_iter() {
 			match event {
 				Event::Quit { .. }
@@ -61,8 +76,10 @@ fn main() {
 				_ => {}
 			}
 		}
-		::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
 
-		cpu.emulate();
+		println!("{} {:?}", frames, last_frame.elapsed().subsec_millis());
+		last_frame = std::time::Instant::now();
+		frames += 1;
 	}
+	
 }
