@@ -4,6 +4,7 @@ mod cpu;
 mod instructions;
 mod memory;
 mod rom;
+mod simulate;
 
 use std::fs;
 use std::time::*;
@@ -18,9 +19,11 @@ fn main() {
 	let mut file = fs::File::open("testroms/nestest.nes").expect("No file found");
 	let r = rom::Rom::load(&mut file);
 
-	println!("{:?}", r);
+	let mut nestest = fs::File::open("testroms/nestest.log").expect("No file found");
 
-	r.dump();
+	simulate::Simulate::load(&mut nestest);
+
+	println!("{:?}", r);
 
 	// [perf]
 	let mut i = 0x8000;
@@ -30,9 +33,7 @@ fn main() {
 		i += 1;
 	}
 
-	cpu.pc = 0x8000;
-
-	cpu.dump();
+	cpu.pc = 0xC000;
 
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsystem = sdl_context.video().unwrap();
@@ -54,32 +55,36 @@ fn main() {
 	let mut last_frame = std::time::Instant::now();
 	let mut frames = 0;
 
-	'running: loop {
-		// cpu step
-		cpu.emulate();
-
-		// ppu step
-
-		// nmi
-
-		// irq
-
-		// apu
-
-		for event in event_pump.poll_iter() {
-			match event {
-				Event::Quit { .. }
-				| Event::KeyDown {
-					keycode: Some(Keycode::Escape),
-					..
-				} => break 'running,
-				_ => {}
-			}
-		}
-
-		println!("{} {:?}", frames, last_frame.elapsed().subsec_millis());
-		last_frame = std::time::Instant::now();
-		frames += 1;
+	for i in 1..100 {
+		print!("{}: ", i);
+		cpu.step();
 	}
+
+	// 'running: loop {
+	// 	// cpu step
+		
+	// 	// ppu step
+
+	// 	// nmi
+
+	// 	// irq
+
+	// 	// apu
+
+	// 	for event in event_pump.poll_iter() {
+	// 		match event {
+	// 			Event::Quit { .. }
+	// 			| Event::KeyDown {
+	// 				keycode: Some(Keycode::Escape),
+	// 				..
+	// 			} => break 'running,
+	// 			_ => {}
+	// 		}
+	// 	}
+
+	// 	// println!("{} {:?}", frames, last_frame.elapsed().subsec_millis());
+	// 	last_frame = std::time::Instant::now();
+	// 	frames += 1;
+	// }
 	
 }

@@ -1,4 +1,5 @@
 use cpu::CPU;
+use std::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Instruction {
@@ -115,13 +116,12 @@ impl AMode {
 		let x = cpu.x as u8;
 		let y = cpu.y as u8;
 
-		print!("{:?} [", self);
 		for b in arr {
 			print!("{:X} ", b);
 		}
-		println!("]");
-		
 
+		print!("  ");
+		
 		match self {
 			AMode::Accumulator | AMode::Implied => OpInput::Implied,
 			AMode::Immediate => OpInput::Immediate(arr[0]), // Use [u8, ..1] specified in instruction as input
