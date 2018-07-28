@@ -62,7 +62,7 @@ fn main() {
 		
 		let op = cpu.get_mem(cpu.pc);
 		// build cpu state
-		let machine_state = simulate::CpuState {
+		let mut machine_state = simulate::CpuState {
 			pc: cpu.pc,
 			a: cpu.a,
 			x: cpu.x,
@@ -74,7 +74,12 @@ fn main() {
 		};
 		cpu.step();
 		// get simulated from test rom
-		let test_state = simulated_cpu.step();
+		let mut test_state = simulated_cpu.step();
+
+		// to compare these two states, we need to ignore bits 5 and 6 of the status
+
+		machine_state.st &= 0b11001111;
+		test_state.st &= 0b11001111;
 
 		if machine_state != test_state {
 			println!("State mismatch! States do not match at log:{}", simulated_cpu.index - 1);

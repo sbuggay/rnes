@@ -104,10 +104,10 @@ impl CPU {
 		self.dump();
 
 		match constructed_opcode {
-			(Instruction::ADC, OpInput::Immediate(val)) => self.adc(val as i8),
+			(Instruction::ADC, OpInput::Immediate(val)) => self.adc(val),
 			(Instruction::ADC, OpInput::Address(val)) => {
 				let val = self.get_mem(val);
-				self.adc(val as i8);
+				self.adc(val);
 			}
 			(Instruction::AND, OpInput::Immediate(val)) => self.and(val),
 			(Instruction::AND, OpInput::Address(val)) => {
@@ -243,18 +243,25 @@ impl CPU {
 		
 	}
 
-	fn adc(&mut self, val: i8) {
-		println!("adc {} + {}", self.a, val);
-		let mut result = self.a as i32 + val as i32;
-		if self.get_flag(Flags::Carry as u8) {
+	fn adc(&mut self, val: u8) {
+		println!("adc {} + {}", self.a as u32, val as u32);
+		let mut result = (self.a as u32) + (val as u32);
+		if self.get_flag(Flags::Carry as u8) { 
 			result += 1;
 		}
 
-		println!("result {}", result);
+		println!("result {:X}", result);
 
-		self.set_flag(Flags::Carry as u8, (result & 0x100) != 0);
+		self.set_flag(Flags::Carry as u8, result > 0xFF);
+		
+		let result = result as u8;
+		let a = self.a;
+
+		println!("result {:X}", result);
+
+		self.set_flag(Flags::Overflow as u8, !(((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0) );
 		// complete flag sets
-		self.a = result as u8;
+		self.a = self.set_zn(result);
 	}
 
 	fn and(&mut self, val: u8) {
@@ -322,7 +329,7 @@ impl CPU {
 	}
 
 	fn cmp_base(&mut self, x: u8, y: u8) {
-		let result = x as u32 - y as u32;
+		let result = (x as i16) - (y as i16);
 		self.set_flag(Flags::Carry as u8, (result & 0x100) == 0);
 		self.set_zn(result as u8);
 	}
@@ -400,6 +407,8 @@ impl CPU {
 	}
 
 	fn ora(&mut self, val: u8) {
+		let result = val | self.a;
+		self.a = self.set_zn(result);
 	}
 
 	fn ror(&mut self, val: u8) {
