@@ -3,7 +3,6 @@ use memory::MEMORY_SIZE;
 
 use std::time;
 
-
 pub enum Flags {
 	Carry = 0b00000001,
 	Zero = 0b00000010,
@@ -14,27 +13,27 @@ pub enum Flags {
 	Sign = 0b10000000,
 }
 
-/// The number of cycles that each machine operation takes. Indexed by opcode number.
-///
-// /// FIXME: This is copied from FCEU.
-// static CYCLE_TABLE: [u8; 256] = [
-//     /*0x00*/ 7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
-//     /*0x10*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-//     /*0x20*/ 6,6,2,8,3,3,5,5,4,2,2,2,4,4,6,6,
-//     /*0x30*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-//     /*0x40*/ 6,6,2,8,3,3,5,5,3,2,2,2,3,4,6,6,
-//     /*0x50*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-//     /*0x60*/ 6,6,2,8,3,3,5,5,4,2,2,2,5,4,6,6,
-//     /*0x70*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-//     /*0x80*/ 2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-//     /*0x90*/ 2,6,2,6,4,4,4,4,2,5,2,5,5,5,5,5,
-//     /*0xA0*/ 2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-//     /*0xB0*/ 2,5,2,5,4,4,4,4,2,4,2,4,4,4,4,4,
-//     /*0xC0*/ 2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
-//     /*0xD0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-//     /*0xE0*/ 2,6,3,8,3,3,5,5,2,2,2,2,4,4,6,6,
-//     /*0xF0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-// ];
+// The number of cycles that each machine operation takes. Indexed by opcode number.
+//
+/// This is copied from FCEU.
+static CYCLE_TABLE: [u8; 256] = [
+    /*0x00*/ 7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
+    /*0x10*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*0x20*/ 6,6,2,8,3,3,5,5,4,2,2,2,4,4,6,6,
+    /*0x30*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*0x40*/ 6,6,2,8,3,3,5,5,3,2,2,2,3,4,6,6,
+    /*0x50*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*0x60*/ 6,6,2,8,3,3,5,5,4,2,2,2,5,4,6,6,
+    /*0x70*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*0x80*/ 2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
+    /*0x90*/ 2,6,2,6,4,4,4,4,2,5,2,5,5,5,5,5,
+    /*0xA0*/ 2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
+    /*0xB0*/ 2,5,2,5,4,4,4,4,2,4,2,4,4,4,4,4,
+    /*0xC0*/ 2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
+    /*0xD0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*0xE0*/ 2,6,3,8,3,3,5,5,2,2,2,2,4,4,6,6,
+    /*0xF0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
+];
 
 pub struct CPU {
 	pub pc: u16,	// program counter
@@ -44,10 +43,12 @@ pub struct CPU {
 	pub st: u8,		// processor status (flags)
 	pub sp: u8, 	// stack pointer
 	pub cycle: u16, // number of cycles
+	pub op: u8,		// last run operation (for testing)
 	pub mem: Vec<u8>,
 }
 
 impl CPU {
+	// todo: split out registers/pc/mem
 	pub fn new() -> CPU {
 		CPU {
 			pc: 0xC000,
@@ -57,6 +58,7 @@ impl CPU {
 			st: 0x24,
 			sp: 0xFD,
 			cycle: 0,
+			op: 0,
 			mem: vec![0; MEMORY_SIZE], //65535
 		}
 	}
@@ -73,9 +75,11 @@ impl CPU {
 	pub fn step(&mut self) {
 		let opcode = self.mem[self.pc as usize];
 		let parsed_opcode = process_opcode(opcode);
+		let cycles = CYCLE_TABLE[opcode as usize];
+		self.op = opcode;
 
-		print!("{:X}", self.pc);
-		print!(" {:X} ", opcode);
+		print!("{:X}   ", self.pc);
+		print!("{:X} ", opcode);
 
 		let constructed_opcode = match parsed_opcode {
 			Some((instruction, amode)) => {
@@ -102,8 +106,8 @@ impl CPU {
 		match constructed_opcode {
 			(Instruction::ADC, OpInput::Immediate(val)) => self.adc(val as i8),
 			(Instruction::ADC, OpInput::Address(val)) => {
-				let x = self.mem[val as usize] as i8;
-				self.adc(x);
+				let val = self.get_mem(val);
+				self.adc(val as i8);
 			}
 			(Instruction::AND, OpInput::Immediate(val)) => self.and(val),
 			(Instruction::AND, OpInput::Address(val)) => {
@@ -147,7 +151,10 @@ impl CPU {
 			(Instruction::DEC, OpInput::Address(val)) => self.dec(val),
 			(Instruction::DEX, OpInput::Implied) => self.dex(),
 			(Instruction::EOR, OpInput::Immediate(val)) => self.eor(val),
-			(Instruction::EOR, OpInput::Address(val)) => self.eor(self.mem[val as usize]),
+			(Instruction::EOR, OpInput::Address(val)) => {
+				let val = self.get_mem(val);
+				self.eor(val);
+			}
 			(Instruction::INC, OpInput::Address(val)) => self.inc(val),
 			(Instruction::INX, OpInput::Implied) => {
 				let val = self.x + 1;
@@ -190,15 +197,15 @@ impl CPU {
 			}
 			(Instruction::PHP, OpInput::Implied) => {
 				let st = self.st;
-				self.push_byte(st);
+				self.push_byte(st | Flags::Break as u8);
 			}
 			(Instruction::PLA, OpInput::Implied) => {
 				let val = self.pop_byte();
-				self.a = val;
+				self.a = self.set_zn(val);
 			}
 			(Instruction::PLP, OpInput::Implied) => {
 				let val = self.pop_byte();
-				self.st = val;
+				self.st = self.set_zn(val);
 			}
 			(Instruction::ROL, OpInput::Implied) => self.rol(self.a),
 			(Instruction::ROL, OpInput::Address(val)) => self.rol(val as u8),
@@ -207,6 +214,7 @@ impl CPU {
 				self.ror(val);
 			}
 			(Instruction::ROR, OpInput::Address(val)) => self.ror(val as u8),
+			(Instruction::RTS, OpInput::Implied) => self.rts(),
 			(Instruction::SBC, OpInput::Immediate(val)) => self.sbc(val as i8),
 			(Instruction::SBC, OpInput::Address(val)) => {
 				let val = self.get_mem(val);
@@ -236,10 +244,13 @@ impl CPU {
 	}
 
 	fn adc(&mut self, val: i8) {
-		let mut result = self.a as u32 + val as u32;
+		println!("adc {} + {}", self.a, val);
+		let mut result = self.a as i32 + val as i32;
 		if self.get_flag(Flags::Carry as u8) {
 			result += 1;
 		}
+
+		println!("result {}", result);
 
 		self.set_flag(Flags::Carry as u8, (result & 0x100) != 0);
 		// complete flag sets
@@ -248,6 +259,7 @@ impl CPU {
 
 	fn and(&mut self, val: u8) {
 		let result = val & self.a;
+		println!("{:b} & {:b} = {:b}", val, self.a, result);
 		self.a = self.set_zn(result);
 	}
 
@@ -280,7 +292,7 @@ impl CPU {
 	}
 
 	fn bne(&mut self, val: i8) {
-		if (self.st & Flags::Zero as u8) == 0 {
+		if !self.get_flag(Flags::Zero as u8) {
 			self.pc = (self.pc as i32 + val as i32) as u16;
 		}
 	}
@@ -331,8 +343,9 @@ impl CPU {
 	}
 
 	fn dec(&mut self, val: u16) {
-		let result = self.mem[val as usize];
-		self.mem[val as usize] = self.set_zn(result - 1);
+		let result = self.get_mem(val);
+		let result = self.set_zn(result - 1);
+		self.store_mem(val, result);
 	}
 
 	fn dex(&mut self) {
@@ -340,13 +353,15 @@ impl CPU {
 		self.x = self.set_zn(result);
 	}
 
-	fn eor(&self, val: u8) {
-
+	fn eor(&mut self, val: u8) {
+		let result = val ^ self.a;
+		self.a = self.set_zn(result);
 	}
 
 	fn inc(&mut self, val: u16) {
-		let result = self.mem[val as usize];
-		self.mem[val as usize] = self.set_zn(result + 1);
+		let result = self.get_mem(val);
+		let result = self.set_zn(result + 1);
+		self.store_mem(val, result);
 	}
 
 	fn inx(&mut self, val: u8) {
@@ -393,6 +408,11 @@ impl CPU {
 	fn rol(&self, val: u8) {
 	}
 
+	fn rts(&mut self) {
+		let addr = self.pop_word();
+		self.pc = addr + 1;
+	}
+
 	fn sbc(&mut self, val: i8) {
 		let a = self.a;
 		let mut result = a as u32 - val as u32;
@@ -410,11 +430,12 @@ impl CPU {
 
 	fn push_byte(&mut self, val: u8) {
 		self.sp -= 1;
-		self.mem[self.sp as usize] = val;
+		let addr = self.sp as u16;
+		self.store_mem(addr, val);
 	}
 
 	fn pop_byte(&mut self) -> u8 {
-		let ret = self.mem[self.sp as usize];
+		let ret = self.get_mem(self.sp as u16);
 		self.sp += 1;
 		ret
 	}
@@ -450,11 +471,11 @@ impl CPU {
 		val
 	}
 
-	fn get_mem(&self, addr: u16) -> u8 {
+	pub fn get_mem(&self, addr: u16) -> u8 {
 		self.mem[addr as usize]
 	}
 
-	fn store_mem(&mut self, addr: u16, val: u8) {
+	pub fn store_mem(&mut self, addr: u16, val: u8) {
 		self.mem[addr as usize] = val;
 	}
 }

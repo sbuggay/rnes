@@ -21,7 +21,7 @@ fn main() {
 
 	let mut nestest = fs::File::open("testroms/nestest.log").expect("No file found");
 
-	simulate::Simulate::load(&mut nestest);
+	let mut simulated_cpu = simulate::Simulate::load(&mut nestest);
 
 	println!("{:?}", r);
 
@@ -55,9 +55,35 @@ fn main() {
 	let mut last_frame = std::time::Instant::now();
 	let mut frames = 0;
 
-	for i in 1..100 {
+	let mut i = 1;
+
+	loop {
 		print!("{}: ", i);
+		
+		let op = cpu.get_mem(cpu.pc);
+		// build cpu state
+		let machine_state = simulate::CpuState {
+			pc: cpu.pc,
+			a: cpu.a,
+			x: cpu.x,
+			y: cpu.y,
+			st: cpu.st,
+			sp: cpu.sp,
+			cycle: 0,
+			op,
+		};
 		cpu.step();
+		// get simulated from test rom
+		let test_state = simulated_cpu.step();
+
+		if machine_state != test_state {
+			println!("State mismatch! States do not match at log:{}", simulated_cpu.index - 1);
+			println!("Machine\t{:?}\nTest\t{:?}\n", machine_state, test_state);
+			break;
+		}
+		//compare
+		
+		i += 1;
 	}
 
 	// 'running: loop {
