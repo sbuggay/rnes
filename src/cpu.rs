@@ -156,14 +156,8 @@ impl CPU {
 				self.eor(val);
 			}
 			(Instruction::INC, OpInput::Address(val)) => self.inc(val),
-			(Instruction::INX, OpInput::Implied) => {
-				let val = self.x + 1;
-				self.inx(val);
-			}
-			(Instruction::INY, OpInput::Implied) => {
-				let val = self.y + 1;
-				self.iny(val);
-			}
+			(Instruction::INX, OpInput::Implied) => self.inx(),
+			(Instruction::INY, OpInput::Implied) => self.iny(),
 			(Instruction::JMP, OpInput::Address(val)) => self.jump(val),
 			(Instruction::JSR, OpInput::Address(val)) => self.jsr(val),
 			(Instruction::LDA, OpInput::Immediate(val)) => self.lda(val),
@@ -259,7 +253,7 @@ impl CPU {
 
 		println!("result {:X}", result);
 
-		self.set_flag(Flags::Overflow as u8, !(((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0) );
+		self.set_flag(Flags::Overflow as u8, !(((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0));
 		// complete flag sets
 		self.a = self.set_zn(result);
 	}
@@ -371,14 +365,14 @@ impl CPU {
 		self.store_mem(val, result);
 	}
 
-	fn inx(&mut self, val: u8) {
+	fn inx(&mut self) {
 		let result = self.x + 1;
 		self.x = self.set_zn(result);
 	}
 
-	fn iny(&mut self, val: u8) {
-		let result = self.x + 1;
-		self.x = self.set_zn(result);
+	fn iny(&mut self) {
+		let result = self.y + 1;
+		self.y = self.set_zn(result);
 	}
 
 	fn jump(&mut self, val: u16) {
@@ -424,7 +418,7 @@ impl CPU {
 
 	fn sbc(&mut self, val: i8) {
 		let a = self.a;
-		let mut result = a as u32 - val as u32;
+		let mut result = a as i32 - val as i32;
 		if !self.get_flag(Flags::Carry as u8) {
 			result -= 1;
 		}
@@ -433,7 +427,7 @@ impl CPU {
 
 		let result = result as u8;
 		let a = self.a;
-		// self.set_flag(Flags::Overflow as u8, (a ^ result) & 0x80 != 0 && (a ^ val) & 0x80 == 0x80);
+		self.set_flag(Flags::Overflow as u8, (((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0));
 		self.a = self.set_zn(result);
 	}
 
