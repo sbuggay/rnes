@@ -6,7 +6,8 @@ mod memory;
 mod rom;
 mod simulate;
 
-use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
 use std::time::*;
 
 use sdl2::event::Event;
@@ -16,10 +17,10 @@ use sdl2::pixels::Color;
 fn main() {
 	let mut cpu = cpu::CPU::new();
 
-	let mut file = fs::File::open("testroms/nestest.nes").expect("No file found");
+	let mut file = File::open("testroms/nestest.nes").expect("No file found");
 	let r = rom::Rom::load(&mut file);
 
-	let mut nestest = fs::File::open("testroms/nestest.log").expect("No file found");
+	let mut nestest = File::open("testroms/nestest.log").expect("No file found");
 
 	let mut simulated_cpu = simulate::Simulate::load(&mut nestest);
 
@@ -27,6 +28,7 @@ fn main() {
 
 	// [perf]
 	let mut i = 0x8000;
+	println!("len: {}", r.rom.len());
 	for b in r.rom.into_iter() {
 		cpu.mem[i] = b;
 		cpu.mem[i + 0x4000] = b;
@@ -84,6 +86,14 @@ fn main() {
 		if machine_state != test_state {
 			println!("State mismatch! States do not match at log:{}", simulated_cpu.index - 1);
 			println!("Machine\t{:?}\nTest\t{:?}\n", machine_state, test_state);
+
+			// dump the ram to file
+			let mut dump = File::create("ram.dump").unwrap();
+
+			println!("{:X} {:X}", cpu.get_mem(0x2), cpu.get_mem(0x3));
+			
+
+			dump.write(&cpu.mem[..]).unwrap();
 			break;
 		}
 		//compare

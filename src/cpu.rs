@@ -2,6 +2,7 @@ use instructions::{process_opcode, Instruction, OpInput};
 use memory::MEMORY_SIZE;
 
 use std::time;
+use std::num::Wrapping;
 
 pub enum Flags {
 	Carry = 0b00000001,
@@ -73,7 +74,7 @@ impl CPU {
 	}
 
 	pub fn step(&mut self) {
-		let opcode = self.mem[self.pc as usize];
+		let opcode = self.get_mem(self.pc);
 		let parsed_opcode = process_opcode(opcode);
 		let cycles = CYCLE_TABLE[opcode as usize];
 		self.op = opcode;
@@ -93,7 +94,7 @@ impl CPU {
 			None => {
 				println!(
 					"Invalid opcode {:02X} (IP = {:04X})!",
-					self.mem[self.pc as usize], self.pc
+					self.get_mem(self.pc), self.pc
 				);
 				self.pc += 1;
 				return;
@@ -114,8 +115,15 @@ impl CPU {
 				let val = self.get_mem(val);
 				self.and(val);
 			}
-			(Instruction::ASL, OpInput::Implied) => self.asl(self.st),
-			(Instruction::ASL, OpInput::Address(val)) => self.asl(val as u8),
+			(Instruction::ASL, OpInput::Implied) => {
+				let val = self.a;
+				self.a = self.shl_base(false, val);
+			}
+			(Instruction::ASL, OpInput::Address(val)) => {
+				let mut m = self.get_mem(val);
+				m = self.shl_base(false, m);
+				self.store_mem(val, m);
+			}
 			(Instruction::BCC, OpInput::Relative(val)) => self.bcc(val),
 			(Instruction::BCS, OpInput::Relative(val)) => self.bcs(val),
 			(Instruction::BEQ, OpInput::Relative(val)) => self.beq(val),
@@ -150,6 +158,7 @@ impl CPU {
 			}
 			(Instruction::DEC, OpInput::Address(val)) => self.dec(val),
 			(Instruction::DEX, OpInput::Implied) => self.dex(),
+			(Instruction::DEY, OpInput::Implied) => self.dey(),
 			(Instruction::EOR, OpInput::Immediate(val)) => self.eor(val),
 			(Instruction::EOR, OpInput::Address(val)) => {
 				let val = self.get_mem(val);
@@ -177,9 +186,13 @@ impl CPU {
 			}
 			(Instruction::LSR, OpInput::Implied) => {
 				let val = self.a;
-				self.lsr(val);
+				self.a = self.shr_base(false, val);
 			}
-			(Instruction::LSR, OpInput::Address(val)) => self.lsr(val as u8), // 16b -> 8b?
+			(Instruction::LSR, OpInput::Address(val)) => {
+				let mut m = self.get_mem(val);
+				m = self.shr_base(false, m);
+				self.store_mem(val, m);
+			}
 			(Instruction::ORA, OpInput::Immediate(val)) => self.ora(val),
 			(Instruction::ORA, OpInput::Address(val)) => {
 				let val = self.get_mem(val);
@@ -201,13 +214,26 @@ impl CPU {
 				let val = self.pop_byte();
 				self.st = self.set_zn(val);
 			}
-			(Instruction::ROL, OpInput::Implied) => self.rol(self.a),
-			(Instruction::ROL, OpInput::Address(val)) => self.rol(val as u8),
+			(Instruction::ROL, OpInput::Implied) => {
+				let val = self.a;
+				self.a = self.rol(val);
+			},
+			(Instruction::ROL, OpInput::Address(val)) => {
+				let val = self.get_mem(val);
+				self.rol(val);
+			}
 			(Instruction::ROR, OpInput::Implied) => {
 				let val = self.a;
+				self.a = self.ror(val);
+			}
+			(Instruction::ROR, OpInput::Address(val)) => {
+				let val = self.get_mem(val);
 				self.ror(val);
 			}
-			(Instruction::ROR, OpInput::Address(val)) => self.ror(val as u8),
+			(Instruction::RTI, OpInput::Implied) => {
+				self.st = self.pop_byte();
+				self.pc = self.pop_word();
+			}
 			(Instruction::RTS, OpInput::Implied) => self.rts(),
 			(Instruction::SBC, OpInput::Immediate(val)) => self.sbc(val as i8),
 			(Instruction::SBC, OpInput::Address(val)) => {
@@ -220,12 +246,27 @@ impl CPU {
 			(Instruction::STA, OpInput::Address(val)) => self.mem[val as usize] = self.a as u8,
 			(Instruction::STX, OpInput::Address(val)) => self.mem[val as usize] = self.x as u8,
 			(Instruction::STY, OpInput::Address(val)) => self.mem[val as usize] = self.y as u8,
-			(Instruction::TAX, OpInput::Implied) => self.x = self.a,
-			(Instruction::TAY, OpInput::Implied) => self.y = self.a,
-			(Instruction::TSX, OpInput::Implied) => self.x = self.sp,
-			(Instruction::TXA, OpInput::Implied) => self.a = self.x,
+			(Instruction::TAX, OpInput::Implied) => {
+				let val = self.a;
+				self.x = self.set_zn(val);
+			}
+			(Instruction::TAY, OpInput::Implied) => {
+				let val = self.a;
+				self.y = self.set_zn(val);
+			}
+			(Instruction::TSX, OpInput::Implied) => {
+				let val = self.sp;
+				self.x = self.set_zn(val);
+			}
+			(Instruction::TXA, OpInput::Implied) => {
+				let val = self.x;
+				self.a = self.set_zn(val);
+			}
 			(Instruction::TXS, OpInput::Implied) => self.sp = self.x,
-			(Instruction::TYA, OpInput::Implied) => self.a = self.y,
+			(Instruction::TYA, OpInput::Implied) => {
+				let val = self.y;
+				self.a = self.set_zn(val);
+			}
 			(_, _) => {
 				// println!(
 				// 	"no mapped instruction for {:?} {:?}",
@@ -240,20 +281,20 @@ impl CPU {
 	fn adc(&mut self, val: u8) {
 		println!("adc {} + {}", self.a as u32, val as u32);
 		let mut result = (self.a as u32) + (val as u32);
-		if self.get_flag(Flags::Carry as u8) { 
+		if self.get_flag(Flags::Carry) { 
 			result += 1;
 		}
 
 		println!("result {:X}", result);
 
-		self.set_flag(Flags::Carry as u8, result > 0xFF);
+		self.set_flag(Flags::Carry, result > 0xFF);
 		
 		let result = result as u8;
 		let a = self.a;
 
 		println!("result {:X}", result);
 
-		self.set_flag(Flags::Overflow as u8, !(((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0));
+		self.set_flag(Flags::Overflow, !(((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0));
 		// complete flag sets
 		self.a = self.set_zn(result);
 	}
@@ -262,9 +303,6 @@ impl CPU {
 		let result = val & self.a;
 		println!("{:b} & {:b} = {:b}", val, self.a, result);
 		self.a = self.set_zn(result);
-	}
-
-	fn asl(&self, val: u8) {
 	}
 
 	fn bcc(&mut self, val: i8) {
@@ -287,44 +325,44 @@ impl CPU {
 
 	fn bit(&mut self, val: u8) {
 		let a = self.a;
-		self.set_flag(Flags::Zero as u8, (val & a) == 0);
-		self.set_flag(Flags::Sign as u8, (val & 0x80) != 0);
-		self.set_flag(Flags::Overflow as u8, (val & 0x40) != 0);
+		self.set_flag(Flags::Zero, (val & a) == 0);
+		self.set_flag(Flags::Sign, (val & 0x80) != 0);
+		self.set_flag(Flags::Overflow, (val & 0x40) != 0);
 	}
 
 	fn bne(&mut self, val: i8) {
-		if !self.get_flag(Flags::Zero as u8) {
+		if !self.get_flag(Flags::Zero) {
 			self.pc = (self.pc as i32 + val as i32) as u16;
 		}
 	}
 
 	fn bmi(&mut self, val: i8) {
-		if (self.st & Flags::Sign as u8) > 0 {
+		if self.get_flag(Flags::Sign) {
 			self.pc = (self.pc as i32 + val as i32) as u16;
 		}
 	}
 
 	fn bpl(&mut self, val: i8) {
-		if (self.st & Flags::Sign as u8) == 0 {
+		if !self.get_flag(Flags::Sign) {
 			self.pc = (self.pc as i32 + val as i32) as u16;
 		}
 	}
 
 	fn bvc(&mut self, val: i8) {
-		if (self.st & Flags::Overflow as u8) == 0 {
+		if !self.get_flag(Flags::Overflow) {
 			self.pc = (self.pc as i32 + val as i32) as u16;
 		}
 	}
 
 	fn bvs(&mut self, val: i8) {
-		if (self.st & Flags::Overflow as u8) > 0 {
+		if self.get_flag(Flags::Overflow) {
 			self.pc = (self.pc as i32 + val as i32) as u16;
 		}
 	}
 
 	fn cmp_base(&mut self, x: u8, y: u8) {
 		let result = (x as i16) - (y as i16);
-		self.set_flag(Flags::Carry as u8, (result & 0x100) == 0);
+		self.set_flag(Flags::Carry, (result & 0x100) == 0);
 		self.set_zn(result as u8);
 	}
 
@@ -350,8 +388,13 @@ impl CPU {
 	}
 
 	fn dex(&mut self) {
-		let result = self.x - 1;
-		self.x = self.set_zn(result);
+		let result = Wrapping(self.x) - Wrapping(1u8);
+		self.x = self.set_zn(result.0);
+	}
+
+	fn dey(&mut self) {
+		let result = Wrapping(self.y) - Wrapping(1u8);
+		self.y = self.set_zn(result.0);
 	}
 
 	fn eor(&mut self, val: u8) {
@@ -365,39 +408,64 @@ impl CPU {
 		self.store_mem(val, result);
 	}
 
+	// increase x wrapping
 	fn inx(&mut self) {
-		let result = self.x + 1;
-		self.x = self.set_zn(result);
+		let result = Wrapping(self.x) + Wrapping(1u8);
+		self.x = self.set_zn(result.0);
 	}
 
+	// increase y wrapping
 	fn iny(&mut self) {
-		let result = self.y + 1;
-		self.y = self.set_zn(result);
+		let result = Wrapping(self.y) + Wrapping(1u8);
+		self.y = self.set_zn(result.0);
 	}
 
+	// jump
 	fn jump(&mut self, val: u16) {
 		self.pc = val;
 	}
 
+	// jump to subroutine
 	fn jsr(&mut self, val: u16) {
 		let pc = self.pc - 1;
 		self.push_word(pc);
 		self.pc = val;
 	}
 
+	// load into a
 	fn lda(&mut self, val: u8) {
+		println!("lda: {}", val);
 		self.a = self.set_zn(val as u8);
 	}
 
+	// load into x
 	fn ldx(&mut self, val: u8) {
 		self.x = self.set_zn(val as u8);
 	}
 
+	// load into x
 	fn ldy(&mut self, val: u8) {
 		self.y = self.set_zn(val as u8);
 	}
 
-	fn lsr(&mut self, val: u8) {
+	fn shl_base(&mut self, lsb: bool, val: u8) -> u8 {
+		let new_carry = (val & 0x80) != 0;
+		let mut result = val << 1;
+		if lsb {
+			result |= 1;
+		}
+		self.set_flag(Flags::Carry, new_carry);
+		self.set_zn(result)
+	}
+
+	fn shr_base(&mut self, msb: bool, val: u8) ->u8 {
+		let new_carry = (val & 0x1) != 0;
+		let mut result = val >> 1;
+		if msb {
+			result |= 0x80;
+		}
+		self.set_flag(Flags::Carry, new_carry);
+		self.set_zn(result)
 	}
 
 	fn ora(&mut self, val: u8) {
@@ -405,10 +473,14 @@ impl CPU {
 		self.a = self.set_zn(result);
 	}
 
-	fn ror(&mut self, val: u8) {
+	fn ror(&mut self, val: u8) -> u8 {
+		let c = self.get_flag(Flags::Carry);
+		self.shr_base(c, val)
 	}
 
-	fn rol(&self, val: u8) {
+	fn rol(&mut self, val: u8) -> u8 {
+		let c = self.get_flag(Flags::Carry);
+		self.shl_base(c, val)
 	}
 
 	fn rts(&mut self) {
@@ -419,27 +491,27 @@ impl CPU {
 	fn sbc(&mut self, val: i8) {
 		let a = self.a;
 		let mut result = a as i32 - val as i32;
-		if !self.get_flag(Flags::Carry as u8) {
+		if !self.get_flag(Flags::Carry) {
 			result -= 1;
 		}
 
-		self.set_flag(Flags::Carry as u8, (result & 0x100) == 0);
+		self.set_flag(Flags::Carry, (result & 0x100) == 0);
 
 		let result = result as u8;
 		let a = self.a;
-		self.set_flag(Flags::Overflow as u8, (((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0));
+		self.set_flag(Flags::Overflow, (((a ^ val as u8) & 0x80) != 0) && (((a ^ result as u8) & 0x80) != 0));
 		self.a = self.set_zn(result);
 	}
 
 	fn push_byte(&mut self, val: u8) {
-		self.sp -= 1;
 		let addr = self.sp as u16;
-		self.store_mem(addr, val);
+		self.store_mem(0x100 + addr, val);
+		self.sp -= 1;
 	}
 
 	fn pop_byte(&mut self) -> u8 {
-		let ret = self.get_mem(self.sp as u16);
 		self.sp += 1;
+		let ret = self.get_mem(0x100 + self.sp as u16);
 		ret
 	}
 
@@ -447,7 +519,7 @@ impl CPU {
 		let lobyte = val & 0xFF;
 		let hibyte = (val & 0xFF00) >> 8;
 		self.push_byte(hibyte as u8);
-		self.push_byte(lobyte as u8)
+		self.push_byte(lobyte as u8);
 	}
 
 	fn pop_word(&mut self) -> u16 {
@@ -456,29 +528,40 @@ impl CPU {
 		((hibyte as u16) << 8) | (lobyte as u16)
 	}
 
-	fn get_flag(&self, flag: u8) -> bool {
-		(self.st & flag) != 0
+	fn get_flag(&self, flag: Flags) -> bool {
+		(self.st & flag as u8) != 0
 	}
 
-	fn set_flag(&mut self, flag: u8, on: bool) {
+	fn set_flag(&mut self, flag: Flags, on: bool) {
 		if on {
-			self.st |= flag;
+			self.st |= flag as u8;
 		} else {
-			self.st &= !flag;
+			self.st &= !(flag as u8);
 		}
 	}
 
 	fn set_zn(&mut self, val: u8) -> u8 {
-		self.set_flag(Flags::Zero as u8, val == 0);
-		self.set_flag(Flags::Sign as u8, (val & 0x80) != 0);
+		self.set_flag(Flags::Zero, val == 0);
+		self.set_flag(Flags::Sign, (val & 0x80) != 0);
 		val
 	}
 
 	pub fn get_mem(&self, addr: u16) -> u8 {
-		self.mem[addr as usize]
+		let mut new_addr = addr;
+		if (addr >= 0x800) && (addr <= 0x1FFF) {
+			new_addr = addr % 0x800;
+			println!("getting mirrored addr {:X}", new_addr);
+		}
+		
+		self.mem[new_addr as usize]
 	}
 
 	pub fn store_mem(&mut self, addr: u16, val: u8) {
-		self.mem[addr as usize] = val;
+		let mut new_addr = addr;
+		if (addr >= 0x800) && (addr <= 0x1FFF) {
+			new_addr = addr % 0x800;
+			println!("setting mirrored addr {:X}", new_addr);
+		}
+		self.mem[new_addr as usize] = val;
 	}
 }
