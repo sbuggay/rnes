@@ -119,8 +119,6 @@ impl AMode {
 		for b in arr {
 			print!("{:X} ", b);
 		}
-
-		print!("  ");
 		
 		match self {
 			AMode::Accumulator | AMode::Implied => OpInput::Implied,
@@ -141,15 +139,15 @@ impl AMode {
 				let slice = &cpu.mem[start..end];
 				OpInput::Address(arr_to_addr(slice));
 				OpInput::Address((arr[0] + x) as u16)
-			}
+			}	
 			AMode::IndexedIndirectX => {
 				// Use [u8, ..1] from instruction
 				// Add to X register with 0-page wraparound, like ZeroPageX.
 				// This is where the absolute (16-bit) target address is stored.
 				// (Output: a 16-bit address)
-				let start = (arr[0] + x) as usize;
-				let end = (start + 2) as usize;
-				let slice = &cpu.mem[start..end];
+				let start = (((arr[0] as usize) + x as usize) & 0xFF) as usize;
+				let end = (start + 1) & 0xFF as usize;	
+				let slice = &[cpu.mem[start], cpu.mem[end]];
 				OpInput::Address(arr_to_addr(slice))
 			}
 			AMode::IndirectIndexedY => {
@@ -157,10 +155,10 @@ impl AMode {
 				// This is where the absolute (16-bit) target address is stored.
 				// Add Y register to this address to get the final address
 				// (Output: a 16-bit address)
-				let start = arr[0] as usize;
+				let start = (arr[0]) as usize;
 				let end = (start + 2) as usize;
 				let slice = &cpu.mem[start..end];
-				OpInput::Address(arr_to_addr(slice))
+				OpInput::Address(arr_to_addr(slice) + y as u16)
 			}
 		}
 	}
