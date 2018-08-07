@@ -275,6 +275,26 @@ impl CPU {
 				let val = self.y;
 				self.a = self.set_zn(val);
 			}
+
+			(Instruction::DCP, OpInput::Address(val)) => {
+				
+				self.dec(val);
+				let ret = self.get_mem(val);
+				self.cmp(ret);
+			}
+			(Instruction::LAX, OpInput::Address(val)) => {
+				let val = self.get_mem(val);
+				self.a = val;
+				self.x = val;
+				self.set_zn(val);
+			}
+			(Instruction::RRA, OpInput::Address(val)) => {
+
+			}
+			(Instruction::SAX, OpInput::Address(val)) => {
+				let ret = self.a & self.x;
+				self.store_mem(val, ret); 
+			}
 			(_, _) => {
 				// println!(
 				// 	"no mapped instruction for {:?} {:?}",
@@ -309,7 +329,6 @@ impl CPU {
 
 	fn and(&mut self, val: u8) {
 		let result = val & self.a;
-		println!("{:b} & {:b} = {:b}", val, self.a, result);
 		self.a = self.set_zn(result);
 	}
 

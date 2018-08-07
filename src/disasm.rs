@@ -72,6 +72,8 @@ pub fn disassmble(constructed_opcode: (Instruction, OpInput)) -> String {
 		(Instruction::TXA, OpInput::Implied) => format!("TXA"),
 		(Instruction::TXS, OpInput::Implied) => format!("TXS"),
 		(Instruction::TYA, OpInput::Implied) => format!("TYA"),
-		(_, _) => format!("no match")
+
+		(Instruction::LAX, OpInput::Address(val)) => format!("LAX ${}", val),
+		(_, _) => format!("{:?}", constructed_opcode.0)
 	}.to_string()
 }

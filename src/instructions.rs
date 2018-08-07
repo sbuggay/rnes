@@ -61,6 +61,11 @@ pub enum Instruction {
 	TXA, // Transfer X to Accumulator..... | N. ...Z. A            = X
 	TXS, // Transfer X to Stack pointer... | .. .....       S      = X
 	TYA, // Transfer Y to Accumulator..... | N. ...Z. A            = Y
+
+	DCP,
+	LAX,
+	RRA,
+	SAX,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -90,8 +95,10 @@ pub enum AMode {
 
 fn arr_to_addr(arr: &[u8]) -> u16 {
 	debug_assert!(arr.len() == 2);
-
+	
 	let x = (arr[0] as u16) + ((arr[1] as u16) << 8);
+	println!("{:X}", x);
+
 	x
 }
 
@@ -147,7 +154,7 @@ impl AMode {
 				// This is where the absolute (16-bit) target address is stored.
 				// (Output: a 16-bit address)
 				let start = (((arr[0] as usize) + x as usize) & 0xFF) as usize;	
-				let end = (start + 1) & 0xFF as usize;	
+				let end = (start + 1) & 0xFF as usize;
 				let slice = &[cpu.mem[start], cpu.mem[end]];
 				OpInput::Address(arr_to_addr(slice))
 			}
@@ -199,7 +206,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x19*/ Some((Instruction::ORA, AMode::AbsoluteY)),
 	/*0x1A*/ None,
 	/*0x1B*/ None,
-	/*0x1C*/ None,
+	/*0x1C*/ Some((Instruction::NOP, AMode::AbsoluteX)),
 	/*0x1D*/ Some((Instruction::ORA, AMode::AbsoluteX)),
 	/*0x1E*/ Some((Instruction::ASL, AMode::AbsoluteX)),
 	/*0x1F*/ None,
@@ -231,7 +238,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x39*/ Some((Instruction::AND, AMode::AbsoluteY)),
 	/*0x3A*/ None,
 	/*0x3B*/ None,
-	/*0x3C*/ None,
+	/*0x3C*/ Some((Instruction::NOP, AMode::AbsoluteX)),
 	/*0x3D*/ Some((Instruction::AND, AMode::AbsoluteX)),
 	/*0x3E*/ Some((Instruction::ROL, AMode::AbsoluteX)),
 	/*0x3F*/ None,
@@ -263,7 +270,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x59*/ Some((Instruction::EOR, AMode::AbsoluteY)),
 	/*0x5A*/ None,
 	/*0x5B*/ None,
-	/*0x5C*/ None,
+	/*0x5C*/ Some((Instruction::NOP, AMode::AbsoluteX)),
 	/*0x5D*/ Some((Instruction::EOR, AMode::AbsoluteX)),
 	/*0x5E*/ Some((Instruction::LSR, AMode::AbsoluteX)),
 	/*0x5F*/ None,
@@ -295,18 +302,18 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x79*/ Some((Instruction::ADC, AMode::AbsoluteY)),
 	/*0x7A*/ None,
 	/*0x7B*/ None,
-	/*0x7C*/ None,
+	/*0x7C*/ Some((Instruction::NOP, AMode::AbsoluteX)),
 	/*0x7D*/ Some((Instruction::ADC, AMode::AbsoluteX)),
 	/*0x7E*/ Some((Instruction::ROR, AMode::AbsoluteX)),
 	/*0x7F*/ None,
-	/*0x80*/ None,
+	/*0x80*/ Some((Instruction::NOP, AMode::Immediate)),
 	/*0x81*/ Some((Instruction::STA, AMode::IndexedIndirectX)),
 	/*0x82*/ None,
-	/*0x83*/ None,
+	/*0x83*/ Some((Instruction::SAX, AMode::IndexedIndirectX)),
 	/*0x84*/ Some((Instruction::STY, AMode::ZeroPage)),
 	/*0x85*/ Some((Instruction::STA, AMode::ZeroPage)),
 	/*0x86*/ Some((Instruction::STX, AMode::ZeroPage)),
-	/*0x87*/ None,
+	/*0x87*/ Some((Instruction::SAX, AMode::ZeroPage)),
 	/*0x88*/ Some((Instruction::DEY, AMode::Implied)),
 	/*0x89*/ None,
 	/*0x8A*/ Some((Instruction::TXA, AMode::Implied)),
@@ -314,7 +321,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x8C*/ Some((Instruction::STY, AMode::Absolute)),
 	/*0x8D*/ Some((Instruction::STA, AMode::Absolute)),
 	/*0x8E*/ Some((Instruction::STX, AMode::Absolute)),
-	/*0x8F*/ None,
+	/*0x8F*/ Some((Instruction::SAX, AMode::Absolute)),
 	/*0x90*/ Some((Instruction::BCC, AMode::Relative)),
 	/*0x91*/ Some((Instruction::STA, AMode::IndirectIndexedY)),
 	/*0x92*/ None,
@@ -322,7 +329,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x94*/ Some((Instruction::STY, AMode::ZeroPageX)),
 	/*0x95*/ Some((Instruction::STA, AMode::ZeroPageX)),
 	/*0x96*/ Some((Instruction::STX, AMode::ZeroPageY)),
-	/*0x97*/ None,
+	/*0x97*/ Some((Instruction::SAX, AMode::ZeroPageY)),
 	/*0x98*/ Some((Instruction::TYA, AMode::Implied)),
 	/*0x99*/ Some((Instruction::STA, AMode::AbsoluteY)),
 	/*0x9A*/ Some((Instruction::TXS, AMode::Implied)),
@@ -334,11 +341,11 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xA0*/ Some((Instruction::LDY, AMode::Immediate)),
 	/*0xA1*/ Some((Instruction::LDA, AMode::IndexedIndirectX)),
 	/*0xA2*/ Some((Instruction::LDX, AMode::Immediate)),
-	/*0xA3*/ None,
+	/*0xA3*/ Some((Instruction::LAX, AMode::IndexedIndirectX)),
 	/*0xA4*/ Some((Instruction::LDY, AMode::ZeroPage)),
 	/*0xA5*/ Some((Instruction::LDA, AMode::ZeroPage)),
 	/*0xA6*/ Some((Instruction::LDX, AMode::ZeroPage)),
-	/*0xA7*/ None,
+	/*0xA7*/ Some((Instruction::LAX, AMode::ZeroPage)),
 	/*0xA8*/ Some((Instruction::TAY, AMode::Implied)),
 	/*0xA9*/ Some((Instruction::LDA, AMode::Immediate)),
 	/*0xAA*/ Some((Instruction::TAX, AMode::Implied)),
@@ -346,15 +353,15 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xAC*/ Some((Instruction::LDY, AMode::Absolute)),
 	/*0xAD*/ Some((Instruction::LDA, AMode::Absolute)),
 	/*0xAE*/ Some((Instruction::LDX, AMode::Absolute)),
-	/*0xAF*/ None,
+	/*0xAF*/ Some((Instruction::LAX, AMode::Absolute)),
 	/*0xB0*/ Some((Instruction::BCS, AMode::Relative)),
 	/*0xB1*/ Some((Instruction::LDA, AMode::IndirectIndexedY)),
 	/*0xB2*/ None,
-	/*0xB3*/ None,
+	/*0xB3*/ Some((Instruction::LAX, AMode::IndirectIndexedY)),
 	/*0xB4*/ Some((Instruction::LDY, AMode::ZeroPageX)),
 	/*0xB5*/ Some((Instruction::LDA, AMode::ZeroPageX)),
 	/*0xB6*/ Some((Instruction::LDX, AMode::ZeroPageY)),
-	/*0xB7*/ None,
+	/*0xB7*/ Some((Instruction::LAX, AMode::ZeroPageY)),
 	/*0xB8*/ Some((Instruction::CLV, AMode::Implied)),
 	/*0xB9*/ Some((Instruction::LDA, AMode::AbsoluteY)),
 	/*0xBA*/ Some((Instruction::TSX, AMode::Implied)),
@@ -362,15 +369,15 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xBC*/ Some((Instruction::LDY, AMode::AbsoluteX)),
 	/*0xBD*/ Some((Instruction::LDA, AMode::AbsoluteX)),
 	/*0xBE*/ Some((Instruction::LDX, AMode::AbsoluteY)),
-	/*0xBF*/ None,
+	/*0xBF*/ Some((Instruction::LAX, AMode::AbsoluteY)),
 	/*0xC0*/ Some((Instruction::CPY, AMode::Immediate)),
 	/*0xC1*/ Some((Instruction::CMP, AMode::IndexedIndirectX)),
 	/*0xC2*/ None,
-	/*0xC3*/ None,
+	/*0xC3*/ Some((Instruction::DCP, AMode::IndexedIndirectX)),
 	/*0xC4*/ Some((Instruction::CPY, AMode::ZeroPage)),
 	/*0xC5*/ Some((Instruction::CMP, AMode::ZeroPage)),
 	/*0xC6*/ Some((Instruction::DEC, AMode::ZeroPage)),
-	/*0xC7*/ None,
+	/*0xC7*/ Some((Instruction::DCP, AMode::ZeroPage)),
 	/*0xC8*/ Some((Instruction::INY, AMode::Implied)),
 	/*0xC9*/ Some((Instruction::CMP, AMode::Immediate)),
 	/*0xCA*/ Some((Instruction::DEX, AMode::Implied)),
@@ -378,23 +385,23 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xCC*/ Some((Instruction::CPY, AMode::Absolute)),
 	/*0xCD*/ Some((Instruction::CMP, AMode::Absolute)),
 	/*0xCE*/ Some((Instruction::DEC, AMode::Absolute)),
-	/*0xCF*/ None,
+	/*0xCF*/ Some((Instruction::DCP, AMode::Absolute)),
 	/*0xD0*/ Some((Instruction::BNE, AMode::Relative)),
 	/*0xD1*/ Some((Instruction::CMP, AMode::IndirectIndexedY)),
 	/*0xD2*/ None,
-	/*0xD3*/ None,
+	/*0xD3*/ Some((Instruction::DCP, AMode::IndirectIndexedY)),
 	/*0xD4*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0xD5*/ Some((Instruction::CMP, AMode::ZeroPageX)),
 	/*0xD6*/ Some((Instruction::DEC, AMode::ZeroPageX)),
-	/*0xD7*/ None,
+	/*0xD7*/ Some((Instruction::DCP, AMode::ZeroPageX)),
 	/*0xD8*/ Some((Instruction::CLD, AMode::Implied)),
 	/*0xD9*/ Some((Instruction::CMP, AMode::AbsoluteY)),
 	/*0xDA*/ None,
-	/*0xDB*/ None,
-	/*0xDC*/ None,
+	/*0xDB*/ Some((Instruction::DCP, AMode::AbsoluteY)),
+	/*0xDC*/ Some((Instruction::NOP, AMode::AbsoluteX)),
 	/*0xDD*/ Some((Instruction::CMP, AMode::AbsoluteX)),
 	/*0xDE*/ Some((Instruction::DEC, AMode::AbsoluteX)),
-	/*0xDF*/ None,
+	/*0xDF*/ Some((Instruction::DCP, AMode::AbsoluteX)),
 	/*0xE0*/ Some((Instruction::CPX, AMode::Immediate)),
 	/*0xE1*/ Some((Instruction::SBC, AMode::IndexedIndirectX)),
 	/*0xE2*/ None,
@@ -406,7 +413,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xE8*/ Some((Instruction::INX, AMode::Implied)),
 	/*0xE9*/ Some((Instruction::SBC, AMode::Immediate)),
 	/*0xEA*/ Some((Instruction::NOP, AMode::Implied)),
-	/*0xEB*/ None,
+	/*0xEB*/ Some((Instruction::SBC, AMode::Immediate)),
 	/*0xEC*/ Some((Instruction::CPX, AMode::Absolute)),
 	/*0xED*/ Some((Instruction::SBC, AMode::Absolute)),
 	/*0xEE*/ Some((Instruction::INC, AMode::Absolute)),
@@ -423,7 +430,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xF9*/ Some((Instruction::SBC, AMode::AbsoluteY)),
 	/*0xFA*/ None,
 	/*0xFB*/ None,
-	/*0xFC*/ None,
+	/*0xFC*/ Some((Instruction::NOP, AMode::AbsoluteX)),
 	/*0xFD*/ Some((Instruction::SBC, AMode::AbsoluteX)),
 	/*0xFE*/ Some((Instruction::INC, AMode::AbsoluteX)),
 	/*0xFF*/ None,
