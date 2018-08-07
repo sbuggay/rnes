@@ -243,10 +243,10 @@ impl CPU {
 				self.pc = self.pop_word();
 			}
 			(Instruction::RTS, OpInput::Implied) => self.rts(),
-			(Instruction::SBC, OpInput::Immediate(val)) => self.sbc(val as i8),
+			(Instruction::SBC, OpInput::Immediate(val)) => self.sbc(val),
 			(Instruction::SBC, OpInput::Address(val)) => {
 				let val = self.get_mem(val);
-				self.sbc(val as i8);
+				self.sbc(val);
 			}
 			(Instruction::SEC, OpInput::Implied) => self.st |= Flags::Carry as u8,
 			(Instruction::SED, OpInput::Implied) => self.st |= Flags::Decimal as u8,
@@ -276,11 +276,17 @@ impl CPU {
 				self.a = self.set_zn(val);
 			}
 
+			// unsupported
 			(Instruction::DCP, OpInput::Address(val)) => {
-				
 				self.dec(val);
 				let ret = self.get_mem(val);
 				self.cmp(ret);
+			}
+			(Instruction::ISC, OpInput::Address(val)) => {
+				self.inc(val);
+				let ret = self.get_mem(val);
+				self.sbc(ret);
+				// self.set_zn(ret);
 			}
 			(Instruction::LAX, OpInput::Address(val)) => {
 				let val = self.get_mem(val);
@@ -288,13 +294,35 @@ impl CPU {
 				self.x = val;
 				self.set_zn(val);
 			}
+			(Instruction::RLA, OpInput::Address(val)) => {
+				let ret = self.get_mem(val);
+				let ret = self.rol(ret);
+				self.store_mem(val, ret);
+				self.and(ret);
+			}
 			(Instruction::RRA, OpInput::Address(val)) => {
-
+				let ret = self.get_mem(val);
+				let ret = self.ror(ret);
+				self.store_mem(val, ret);
+				self.adc(ret);
 			}
 			(Instruction::SAX, OpInput::Address(val)) => {
 				let ret = self.a & self.x;
 				self.store_mem(val, ret); 
 			}
+			(Instruction::SLO, OpInput::Address(val)) => {
+				let mut m = self.get_mem(val);
+				m = self.shl_base(false, m);
+				self.store_mem(val, m);
+				self.ora(m);
+			}
+			(Instruction::SRE, OpInput::Address(val)) => {
+				let mut m = self.get_mem(val);
+				m = self.shr_base(false, m);
+				self.store_mem(val, m);
+				self.eor(m);
+			}
+
 			(_, _) => {
 				// println!(
 				// 	"no mapped instruction for {:?} {:?}",
@@ -514,7 +542,7 @@ impl CPU {
 		self.pc = addr + 1;
 	}
 
-	fn sbc(&mut self, val: i8) {
+	fn sbc(&mut self, val: u8) {
 		let a = self.a;
 		let mut result = a as i32 - val as i32;
 		if !self.get_flag(Flags::Carry) {
