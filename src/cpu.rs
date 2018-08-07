@@ -315,6 +315,9 @@ impl CPU {
 				self.eor(m);
 			}
 
+			(Instruction::KIL, _) => {
+				::std::process::exit(1);
+			}
 			(_, _) => {
 				// println!(
 				// 	"no mapped instruction for {:?} {:?}",
@@ -322,8 +325,6 @@ impl CPU {
 				// );
 			}
 		};
-
-		
 	}
 
 	fn adc(&mut self, val: u8) {
