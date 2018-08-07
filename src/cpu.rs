@@ -87,21 +87,13 @@ impl CPU {
 		
 
 		let constructed_opcode = match parsed_opcode {
-			Some((instruction, amode)) => {
+			(instruction, amode) => {
 				let extra_bytes = amode.extra_bytes();
 				let slice = &self.mem
 					[((self.pc + 1) as usize)..(((self.pc + 1) + extra_bytes as u16) as usize)];
 				let opinput = amode.process(self, slice);
 				self.pc += 1 + extra_bytes as u16;
 				(instruction, opinput)
-			}
-			None => {
-				println!(
-					"Invalid opcode {:02X} (IP = {:04X})!",
-					self.get_mem(self.pc), self.pc
-				);
-				self.pc += 1;
-				return;
 			}
 		};
 
