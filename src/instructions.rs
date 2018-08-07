@@ -139,8 +139,7 @@ impl AMode {
 				let start = arr_to_addr(arr) as usize;
 				let end = (start + 2) as usize;
 				let slice = &cpu.mem[start..end];
-				OpInput::Address(arr_to_addr(slice));
-				OpInput::Address((arr[0] + x) as u16)
+				OpInput::Address(arr_to_addr(slice))
 			}	
 			AMode::IndexedIndirectX => {
 				// Use [u8, ..1] from instruction
@@ -157,9 +156,9 @@ impl AMode {
 				// This is where the absolute (16-bit) target address is stored.
 				// Add Y register to this address to get the final address
 				// (Output: a 16-bit address)
-				let start = (arr[0]) as usize;
-				let end = (start + 2) as usize;
-				let slice = &cpu.mem[start..end];
+				let start = (((arr[0] as usize)) & 0xFF) as usize;
+				let end = (start + 1) & 0xFF as usize;	
+				let slice = &[cpu.mem[start], cpu.mem[end]];
 				let addr = Wrapping(arr_to_addr(slice)) + Wrapping(y as u16);
 				OpInput::Address(addr.0)
 			}
