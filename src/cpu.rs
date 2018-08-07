@@ -4,6 +4,8 @@ use memory::MEMORY_SIZE;
 use std::time;
 use std::num::Wrapping;
 
+use disasm::{disassmble};
+
 pub enum Flags {
 	Carry = 0b00000001,
 	Zero = 0b00000010,
@@ -76,11 +78,13 @@ impl CPU {
 	pub fn step(&mut self) {
 		let opcode = self.get_mem(self.pc);
 		let parsed_opcode = process_opcode(opcode);
+		
 		let cycles = CYCLE_TABLE[opcode as usize];
 		self.op = opcode;
 
-		print!("{:X}   ", self.pc);
+		print!("{:X} ", self.pc);
 		print!("{:X} ", opcode);
+		
 
 		let constructed_opcode = match parsed_opcode {
 			Some((instruction, amode)) => {
@@ -101,7 +105,9 @@ impl CPU {
 			}
 		};
 
-		print!("\t\t");
+		print!("{}", disassmble(constructed_opcode));
+
+		print!("\t");
 		self.dump();
 
 		match constructed_opcode {

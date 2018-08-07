@@ -5,6 +5,7 @@ mod instructions;
 mod memory;
 mod rom;
 mod simulate;
+mod disasm;
 
 use std::fs::File;
 use std::io::prelude::*;
