@@ -1,6 +1,8 @@
 use cpu::CPU;
 use std::fmt;
 
+use std::num::Wrapping;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Instruction {
 	ADC, // ADd with Carry................ | NV ...ZC A            = A + M + C
@@ -158,7 +160,8 @@ impl AMode {
 				let start = (arr[0]) as usize;
 				let end = (start + 2) as usize;
 				let slice = &cpu.mem[start..end];
-				OpInput::Address(arr_to_addr(slice) + y as u16)
+				let addr = Wrapping(arr_to_addr(slice)) + Wrapping(y as u16);
+				OpInput::Address(addr.0)
 			}
 		}
 	}

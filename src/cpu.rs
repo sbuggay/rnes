@@ -218,17 +218,19 @@ impl CPU {
 				let val = self.a;
 				self.a = self.rol(val);
 			},
-			(Instruction::ROL, OpInput::Address(val)) => {
-				let val = self.get_mem(val);
-				self.rol(val);
+			(Instruction::ROL, OpInput::Address(addr)) => {
+				let val = self.get_mem(addr);
+				let ret = self.rol(val);
+				self.store_mem(addr, ret)
 			}
 			(Instruction::ROR, OpInput::Implied) => {
 				let val = self.a;
 				self.a = self.ror(val);
 			}
-			(Instruction::ROR, OpInput::Address(val)) => {
-				let val = self.get_mem(val);
-				self.ror(val);
+			(Instruction::ROR, OpInput::Address(addr)) => {
+				let val = self.get_mem(addr);
+				let ret = self.ror(val);
+				self.store_mem(addr, ret)
 			}
 			(Instruction::RTI, OpInput::Implied) => {
 				self.st = self.pop_byte();
@@ -382,8 +384,8 @@ impl CPU {
 	}
 
 	fn dec(&mut self, val: u16) {
-		let result = self.get_mem(val);
-		let result = self.set_zn(result - 1);
+		let result = Wrapping(self.get_mem(val)) - Wrapping(1u8);
+		let result = self.set_zn(result.0);
 		self.store_mem(val, result);
 	}
 
@@ -403,8 +405,8 @@ impl CPU {
 	}
 
 	fn inc(&mut self, val: u16) {
-		let result = self.get_mem(val);
-		let result = self.set_zn(result + 1);
+		let result = Wrapping(self.get_mem(val)) + Wrapping(1u8);
+		let result = self.set_zn(result.0);
 		self.store_mem(val, result);
 	}
 
@@ -434,7 +436,6 @@ impl CPU {
 
 	// load into a
 	fn lda(&mut self, val: u8) {
-		println!("lda: {}", val);
 		self.a = self.set_zn(val as u8);
 	}
 
