@@ -52,54 +52,52 @@ fn main() {
 	canvas.set_draw_color(Color::RGB(0, 0, 0));
 	canvas.clear();
 	canvas.present();
+
 	let mut event_pump = sdl_context.event_pump().unwrap();
-
-
 	let mut last_frame = std::time::Instant::now();
 	let mut frames = 0;
-
 	let mut i = 1;
 
 	loop {
-		print!("{}: ", i);
+		// print!("{}: ", i);
 		
-		let op = cpu.get_mem(cpu.pc);
-		// build cpu state
-		let mut machine_state = simulate::CpuState {
-			pc: cpu.pc,
-			a: cpu.a,
-			x: cpu.x,
-			y: cpu.y,
-			st: cpu.st,
-			sp: cpu.sp,
-			cycle: 0,
-			op,
-		};
+		// let op = cpu.get_mem(cpu.pc);
+		// // build cpu state
+		// let mut machine_state = simulate::CpuState {
+		// 	pc: cpu.pc,
+		// 	a: cpu.a,
+		// 	x: cpu.x,
+		// 	y: cpu.y,
+		// 	st: cpu.st,
+		// 	sp: cpu.sp,
+		// 	cycle: 0,
+		// 	op,
+		// };
+		// cpu.step();
+		// // get simulated from test rom
+		// let mut test_state = simulated_cpu.step();
+
+		// // to compare these two states, we need to ignore bits 5 and 6 of the status
+
+		// machine_state.st &= 0b11001111;
+		// test_state.st &= 0b11001111;
+
+		// if machine_state != test_state {
+		// 	println!("State mismatch! States do not match at log:{}", simulated_cpu.index - 1);
+		// 	println!("Machine\t{:?}\nTest\t{:?}\n", machine_state, test_state);
+
+		// 	// dump the ram to file
+		// 	let mut dump = File::create("ram.dump").unwrap();
+
+		// 	println!("{:X} {:X}", cpu.get_mem(0x2), cpu.get_mem(0x3));
+
+		// 	dump.write(&cpu.mem[..]).unwrap();
+		// 	break;
+		// }
+		// //compare
+		
+		// i += 1;
 		cpu.step();
-		// get simulated from test rom
-		let mut test_state = simulated_cpu.step();
-
-		// to compare these two states, we need to ignore bits 5 and 6 of the status
-
-		machine_state.st &= 0b11001111;
-		test_state.st &= 0b11001111;
-
-		if machine_state != test_state {
-			println!("State mismatch! States do not match at log:{}", simulated_cpu.index - 1);
-			println!("Machine\t{:?}\nTest\t{:?}\n", machine_state, test_state);
-
-			// dump the ram to file
-			let mut dump = File::create("ram.dump").unwrap();
-
-			println!("{:X} {:X}", cpu.get_mem(0x2), cpu.get_mem(0x3));
-			
-
-			dump.write(&cpu.mem[..]).unwrap();
-			break;
-		}
-		//compare
-		
-		i += 1;
 	}
 
 	// 'running: loop {
