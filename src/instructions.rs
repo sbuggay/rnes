@@ -117,36 +117,36 @@ impl AMode {
 	pub fn process(self, cpu: &CPU, arr: &[u8]) -> OpInput {
 		let x = cpu.x as u8;
 		let y = cpu.y as u8;
-
-		for b in arr {
-			print!("{:X} ", b);
-		}
 		
 		match self {
 			AMode::Accumulator | AMode::Implied => OpInput::Implied,
 			AMode::Immediate => OpInput::Immediate(arr[0]), // Use [u8, ..1] specified in instruction as input
 			AMode::ZeroPage => OpInput::Address(arr[0] as u16), // Interpret as zero page address
-			AMode::ZeroPageX => OpInput::Address((arr[0] + x) as u16), // Add to X register (as u8 -- the final address is in 0-page)
-			AMode::ZeroPageY => OpInput::Address((arr[0] + y) as u16), // Add to Y register (as u8 -- the final address is in 0-page)
+			AMode::ZeroPageX => OpInput::Address((Wrapping(arr[0]) + Wrapping(x)).0 as u16), // Add to X register (as u8 -- the final address is in 0-page)
+			AMode::ZeroPageY => OpInput::Address((Wrapping(arr[0]) + Wrapping(y)).0 as u16), // Add to Y register (as u8 -- the final address is in 0-page)
 			AMode::Relative => OpInput::Relative(arr[0] as i8),        // Use [u8, ..1] from instruction
 			AMode::Absolute => OpInput::Address(arr_to_addr(arr)),
-			AMode::AbsoluteX => OpInput::Address(arr_to_addr(arr) + x as u16),
-			AMode::AbsoluteY => OpInput::Address(arr_to_addr(arr) + y as u16),
+			AMode::AbsoluteX => OpInput::Address((Wrapping(arr_to_addr(arr)) + Wrapping(x as u16)).0),
+			AMode::AbsoluteY => OpInput::Address((Wrapping(arr_to_addr(arr)) + Wrapping(y as u16)).0),
 			AMode::Indirect => {
 				// Use [u8, ..2] from instruction as an address. Interpret the
 				// two bytes starting at that address as an address.
 				// (Output: a 16-bit address)
-				let start = arr_to_addr(arr) as usize;
-				let end = (start + 2) as usize;
-				let slice = &cpu.mem[start..end];
-				OpInput::Address(arr_to_addr(slice))
+				let addr = arr_to_addr(arr);
+				let start = cpu.mem[addr as usize];
+				let mut end = cpu.mem[(addr + 1) as usize];
+				if addr & 0xFF == 0xFF {
+					end = cpu.mem[(addr & 0xFF00) as usize];
+				}
+				// let slice = &cpu.mem[start..end];
+				OpInput::Address(arr_to_addr(&[start, end]))
 			}	
 			AMode::IndexedIndirectX => {
 				// Use [u8, ..1] from instruction
 				// Add to X register with 0-page wraparound, like ZeroPageX.
 				// This is where the absolute (16-bit) target address is stored.
 				// (Output: a 16-bit address)
-				let start = (((arr[0] as usize) + x as usize) & 0xFF) as usize;
+				let start = (((arr[0] as usize) + x as usize) & 0xFF) as usize;	
 				let end = (start + 1) & 0xFF as usize;	
 				let slice = &[cpu.mem[start], cpu.mem[end]];
 				OpInput::Address(arr_to_addr(slice))
@@ -175,7 +175,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x01*/ Some((Instruction::ORA, AMode::IndexedIndirectX)),
 	/*0x02*/ None,
 	/*0x03*/ None,
-	/*0x04*/ None,
+	/*0x04*/ Some((Instruction::NOP, AMode::ZeroPage)),
 	/*0x05*/ Some((Instruction::ORA, AMode::ZeroPage)),
 	/*0x06*/ Some((Instruction::ASL, AMode::ZeroPage)),
 	/*0x07*/ None,
@@ -183,7 +183,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x09*/ Some((Instruction::ORA, AMode::Immediate)),
 	/*0x0A*/ Some((Instruction::ASL, AMode::Accumulator)),
 	/*0x0B*/ None,
-	/*0x0C*/ None,
+	/*0x0C*/ Some((Instruction::NOP, AMode::Absolute)),
 	/*0x0D*/ Some((Instruction::ORA, AMode::Absolute)),
 	/*0x0E*/ Some((Instruction::ASL, AMode::Absolute)),
 	/*0x0F*/ None,
@@ -191,7 +191,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x11*/ Some((Instruction::ORA, AMode::IndirectIndexedY)),
 	/*0x12*/ None,
 	/*0x13*/ None,
-	/*0x14*/ None,
+	/*0x14*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0x15*/ Some((Instruction::ORA, AMode::ZeroPageX)),
 	/*0x16*/ Some((Instruction::ASL, AMode::ZeroPageX)),
 	/*0x17*/ None,
@@ -223,7 +223,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x31*/ Some((Instruction::AND, AMode::IndirectIndexedY)),
 	/*0x32*/ None,
 	/*0x33*/ None,
-	/*0x34*/ None,
+	/*0x34*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0x35*/ Some((Instruction::AND, AMode::ZeroPageX)),
 	/*0x36*/ Some((Instruction::ROL, AMode::ZeroPageX)),
 	/*0x37*/ None,
@@ -239,7 +239,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x41*/ Some((Instruction::EOR, AMode::IndexedIndirectX)),
 	/*0x42*/ None,
 	/*0x43*/ None,
-	/*0x44*/ None,
+	/*0x44*/ Some((Instruction::NOP, AMode::ZeroPage)),
 	/*0x45*/ Some((Instruction::EOR, AMode::ZeroPage)),
 	/*0x46*/ Some((Instruction::LSR, AMode::ZeroPage)),
 	/*0x47*/ None,
@@ -255,7 +255,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x51*/ Some((Instruction::EOR, AMode::IndirectIndexedY)),
 	/*0x52*/ None,
 	/*0x53*/ None,
-	/*0x54*/ None,
+	/*0x54*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0x55*/ Some((Instruction::EOR, AMode::ZeroPageX)),
 	/*0x56*/ Some((Instruction::LSR, AMode::ZeroPageX)),
 	/*0x57*/ None,
@@ -271,7 +271,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x61*/ Some((Instruction::ADC, AMode::IndexedIndirectX)),
 	/*0x62*/ None,
 	/*0x63*/ None,
-	/*0x64*/ None,
+	/*0x64*/ Some((Instruction::NOP, AMode::ZeroPage)),
 	/*0x65*/ Some((Instruction::ADC, AMode::ZeroPage)),
 	/*0x66*/ Some((Instruction::ROR, AMode::ZeroPage)),
 	/*0x67*/ None,
@@ -287,7 +287,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0x71*/ Some((Instruction::ADC, AMode::IndirectIndexedY)),
 	/*0x72*/ None,
 	/*0x73*/ None,
-	/*0x74*/ None,
+	/*0x74*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0x75*/ Some((Instruction::ADC, AMode::ZeroPageX)),
 	/*0x76*/ Some((Instruction::ROR, AMode::ZeroPageX)),
 	/*0x77*/ None,
@@ -383,7 +383,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xD1*/ Some((Instruction::CMP, AMode::IndirectIndexedY)),
 	/*0xD2*/ None,
 	/*0xD3*/ None,
-	/*0xD4*/ None,
+	/*0xD4*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0xD5*/ Some((Instruction::CMP, AMode::ZeroPageX)),
 	/*0xD6*/ Some((Instruction::DEC, AMode::ZeroPageX)),
 	/*0xD7*/ None,
@@ -415,7 +415,7 @@ pub static OPCODES: [Option<(Instruction, AMode)>; 256] = [
 	/*0xF1*/ Some((Instruction::SBC, AMode::IndirectIndexedY)),
 	/*0xF2*/ None,
 	/*0xF3*/ None,
-	/*0xF4*/ None,
+	/*0xF4*/ Some((Instruction::NOP, AMode::ZeroPageX)),
 	/*0xF5*/ Some((Instruction::SBC, AMode::ZeroPageX)),
 	/*0xF6*/ Some((Instruction::INC, AMode::ZeroPageX)),
 	/*0xF7*/ None,
